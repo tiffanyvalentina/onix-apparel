@@ -50,6 +50,20 @@ describe('Vertex AI & Local Search Simulation Suite', () => {
     assert.ok(res.products.length > 0, 'Should find products for corrected query "jacket"');
   });
 
+  it('should autocorrect "jacktet" -> "jacket"', () => {
+    const res = simulateClientSearch({ query: 'jacktet' }, FALLBACK_PRODUCTS);
+    assert.equal(res.correctedQuery, 'jacket');
+    assert.ok(res.products.length > 0, 'Should find products for misspelled "jacktet"');
+    const hasJackets = res.products.some((p) => p.title.toLowerCase().includes('jacket'));
+    assert.ok(hasJackets, 'Results must contain jackets');
+  });
+
+  it('should autocorrect transposed typo "jakcet" -> "jacket"', () => {
+    const res = simulateClientSearch({ query: 'jakcet' }, FALLBACK_PRODUCTS);
+    assert.equal(res.correctedQuery, 'jacket');
+    assert.ok(res.products.length > 0, 'Should find products for misspelled "jakcet"');
+  });
+
   it('should autocorrect "shrt" -> "t-shirt"', () => {
     const res = simulateClientSearch({ query: 'shrt' }, FALLBACK_PRODUCTS);
     assert.equal(res.correctedQuery, 't-shirt');

@@ -1,5 +1,6 @@
 import { Product } from '../types/product';
 import { FALLBACK_PRODUCTS } from '../data/fallbackProducts';
+import { correctQuery } from '../utils/fuzzySearch';
 
 export interface FacetValue {
   value: string;
@@ -102,22 +103,14 @@ export function simulateClientSearch(
     );
   }
 
-  // 5. Query matching & Autocorrection
+  // 5. Query matching & Fuzzy Autocorrection
   let correctedQuery: string | null = null;
   const cleanQ = query.trim().toLowerCase();
 
   if (cleanQ) {
-    if (cleanQ.includes('jacet') || cleanQ.includes('jaket')) correctedQuery = 'jacket';
-    if (cleanQ.includes('shrt') || cleanQ.includes('tshirt')) correctedQuery = 't-shirt';
-    if (cleanQ.includes('jewl') || cleanQ.includes('dimond')) correctedQuery = 'diamond';
-    if (cleanQ.includes('hoodi')) correctedQuery = 'hoodie';
-
-    const searchTokens = Array.from(
-      new Set([
-        ...cleanQ.split(/\s+/).filter(Boolean),
-        ...(correctedQuery ? correctedQuery.split(/\s+/).filter(Boolean) : []),
-      ])
-    );
+    const { correctedQuery: autoCorrect, tokens } = correctQuery(cleanQ);
+    correctedQuery = autoCorrect;
+    const searchTokens = tokens;
 
     filtered = filtered
       .map((p) => {

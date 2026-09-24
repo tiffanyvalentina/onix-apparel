@@ -21,6 +21,7 @@ import { Product, Category, SortOption } from './types/product';
 import { useCart } from './context/CartContext';
 import { Sparkles, RefreshCw, AlertCircle } from 'lucide-react';
 import { FALLBACK_PRODUCTS } from './data/fallbackProducts';
+import { correctQuery } from './utils/fuzzySearch';
 
 export const AppContent: React.FC = () => {
   const [products, setProducts] = useState<Product[]>(FALLBACK_PRODUCTS);
@@ -153,20 +154,7 @@ export const AppContent: React.FC = () => {
   // Instant, synchronous 0ms search & filter logic
   const filteredProducts = useMemo(() => {
     const cleanQ = searchQuery.trim().toLowerCase();
-
-    // Typo autocorrection
-    let autoCorrectTerm: string | null = null;
-    if (cleanQ.includes('jacet') || cleanQ.includes('jaket')) autoCorrectTerm = 'jacket';
-    if (cleanQ.includes('shrt') || cleanQ.includes('tshirt')) autoCorrectTerm = 't-shirt';
-    if (cleanQ.includes('jewl') || cleanQ.includes('dimond')) autoCorrectTerm = 'diamond';
-    if (cleanQ.includes('hoodi')) autoCorrectTerm = 'hoodie';
-
-    const tokens = Array.from(
-      new Set([
-        ...cleanQ.split(/\s+/).filter(Boolean),
-        ...(autoCorrectTerm ? autoCorrectTerm.split(/\s+/).filter(Boolean) : []),
-      ])
-    );
+    const { tokens } = correctQuery(cleanQ);
 
     return products
       .filter((p) => {
@@ -219,12 +207,8 @@ export const AppContent: React.FC = () => {
   // Detected autocorrection for the UI notice
   const detectedCorrection = useMemo(() => {
     if (correctedQuery) return correctedQuery;
-    const cleanQ = searchQuery.trim().toLowerCase();
-    if (cleanQ.includes('jacet') || cleanQ.includes('jaket')) return 'jacket';
-    if (cleanQ.includes('shrt') || cleanQ.includes('tshirt')) return 't-shirt';
-    if (cleanQ.includes('jewl') || cleanQ.includes('dimond')) return 'diamond';
-    if (cleanQ.includes('hoodi')) return 'hoodie';
-    return null;
+    const { correctedQuery: autoCorrect } = correctQuery(searchQuery);
+    return autoCorrect;
   }, [correctedQuery, searchQuery]);
 
   // Dynamic Facets computed in real time from matching items
