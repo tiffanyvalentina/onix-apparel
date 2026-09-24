@@ -1,7 +1,12 @@
 import React, { useState } from 'react';
 import { ArrowRight, Check, Heart, Mail, ShieldCheck } from 'lucide-react';
 
-export const Footer: React.FC = () => {
+export interface FooterProps {
+  onSelectCollection?: (collectionKey: 'women' | 'men' | 'accessories' | 'new' | 'sale') => void;
+  onSelectCustomerCare?: (sectionKey: 'shipping' | 'returns' | 'sizing' | 'order-lookup' | 'contact') => void;
+}
+
+export const Footer: React.FC<FooterProps> = ({ onSelectCollection, onSelectCustomerCare }) => {
   const [email, setEmail] = useState('');
   const [subscribed, setSubscribed] = useState(false);
 
@@ -42,11 +47,76 @@ export const Footer: React.FC = () => {
               Collections
             </h4>
             <ul className="space-y-2 text-xs text-stone-400">
-              <li><a href="#women" className="hover:text-white transition-colors">Women's Apparel</a></li>
-              <li><a href="#men" className="hover:text-white transition-colors">Men's Casual & Outerwear</a></li>
-              <li><a href="#accessories" className="hover:text-white transition-colors">Fine Jewelry & Accessories</a></li>
-              <li><a href="#new" className="hover:text-white transition-colors">Seasonal New Arrivals</a></li>
-              <li><a href="#sale" className="hover:text-white transition-colors">End of Season Sale</a></li>
+              <li>
+                <a
+                  href="#women"
+                  onClick={(e) => {
+                    if (onSelectCollection) {
+                      e.preventDefault();
+                      onSelectCollection('women');
+                    }
+                  }}
+                  className="hover:text-white transition-colors cursor-pointer"
+                >
+                  Women's Apparel
+                </a>
+              </li>
+              <li>
+                <a
+                  href="#men"
+                  onClick={(e) => {
+                    if (onSelectCollection) {
+                      e.preventDefault();
+                      onSelectCollection('men');
+                    }
+                  }}
+                  className="hover:text-white transition-colors cursor-pointer"
+                >
+                  Men's Casual & Outerwear
+                </a>
+              </li>
+              <li>
+                <a
+                  href="#accessories"
+                  onClick={(e) => {
+                    if (onSelectCollection) {
+                      e.preventDefault();
+                      onSelectCollection('accessories');
+                    }
+                  }}
+                  className="hover:text-white transition-colors cursor-pointer"
+                >
+                  Fine Jewelry & Accessories
+                </a>
+              </li>
+              <li>
+                <a
+                  href="#new"
+                  onClick={(e) => {
+                    if (onSelectCollection) {
+                      e.preventDefault();
+                      onSelectCollection('new');
+                    }
+                  }}
+                  className="hover:text-white transition-colors cursor-pointer"
+                >
+                  Seasonal New Arrivals
+                </a>
+              </li>
+              <li>
+                <a
+                  href="#sale"
+                  onClick={(e) => {
+                    if (onSelectCollection) {
+                      e.preventDefault();
+                      onSelectCollection('sale');
+                    }
+                  }}
+                  className="hover:text-white transition-colors cursor-pointer"
+                >
+                  End of Season Sale
+                </a>
+              </li>
             </ul>
           </div>
 
@@ -56,11 +126,76 @@ export const Footer: React.FC = () => {
               Customer Care
             </h4>
             <ul className="space-y-2 text-xs text-stone-400">
-              <li><a href="#shipping" className="hover:text-white transition-colors">Complimentary Shipping Policy</a></li>
-              <li><a href="#returns" className="hover:text-white transition-colors">30-Day Easy Returns</a></li>
-              <li><a href="#sizing" className="hover:text-white transition-colors">Apparel Sizing Guide</a></li>
-              <li><a href="#order-lookup" className="hover:text-white transition-colors">Track Your Order</a></li>
-              <li><a href="#contact" className="hover:text-white transition-colors">Contact Client Services</a></li>
+              <li>
+                <a
+                  href="#shipping"
+                  onClick={(e) => {
+                    if (onSelectCustomerCare) {
+                      e.preventDefault();
+                      onSelectCustomerCare('shipping');
+                    }
+                  }}
+                  className="hover:text-white transition-colors cursor-pointer"
+                >
+                  Complimentary Shipping Policy
+                </a>
+              </li>
+              <li>
+                <a
+                  href="#returns"
+                  onClick={(e) => {
+                    if (onSelectCustomerCare) {
+                      e.preventDefault();
+                      onSelectCustomerCare('returns');
+                    }
+                  }}
+                  className="hover:text-white transition-colors cursor-pointer"
+                >
+                  30-Day Easy Returns
+                </a>
+              </li>
+              <li>
+                <a
+                  href="#sizing"
+                  onClick={(e) => {
+                    if (onSelectCustomerCare) {
+                      e.preventDefault();
+                      onSelectCustomerCare('sizing');
+                    }
+                  }}
+                  className="hover:text-white transition-colors cursor-pointer"
+                >
+                  Apparel Sizing Guide
+                </a>
+              </li>
+              <li>
+                <a
+                  href="#order-lookup"
+                  onClick={(e) => {
+                    if (onSelectCustomerCare) {
+                      e.preventDefault();
+                      onSelectCustomerCare('order-lookup');
+                    }
+                  }}
+                  className="hover:text-white transition-colors cursor-pointer"
+                >
+                  Track Your Order
+                </a>
+              </li>
+              <li>
+                <a
+                  href="#contact"
+                  onClick={(e) => {
+                    if (onSelectCustomerCare) {
+                      e.preventDefault();
+                      onSelectCustomerCare('contact');
+                    }
+                  }}
+                  className="hover:text-white transition-colors cursor-pointer"
+                >
+                  Contact Client Services
+                </a>
+              </li>
             </ul>
           </div>
 

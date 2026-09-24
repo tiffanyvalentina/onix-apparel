@@ -17,6 +17,9 @@ export interface Product {
   inStock?: boolean;
   featured?: boolean;
   isNewArrival?: boolean;
+  onSale?: boolean;
+  originalPrice?: number;
+  discountPercent?: number;
 }
 
 export interface CartItem {

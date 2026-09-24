@@ -24,10 +24,13 @@ import { FALLBACK_PRODUCTS } from './data/fallbackProducts';
 import { correctQuery } from './utils/fuzzySearch';
 import { CustomerCarePage, CustomerCareSection } from './components/CustomerCare/CustomerCarePage';
 
+export type SpecialCollection = 'all' | 'new' | 'sale';
+
 export const AppContent: React.FC = () => {
   const [products, setProducts] = useState<Product[]>(FALLBACK_PRODUCTS);
   const [loading, setLoading] = useState(false);
   const [category, setCategory] = useState<Category>('all');
+  const [specialCollection, setSpecialCollection] = useState<SpecialCollection>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [maxPrice, setMaxPrice] = useState<number>(700);
   const [sortBy, setSortBy] = useState<SortOption>('featured');
@@ -55,39 +58,65 @@ export const AppContent: React.FC = () => {
 
   const { addToCart } = useCart();
 
-  // Listen to hash changes for Customer Care navigation and footer links
+  const handleSelectCollection = (collectionKey: 'women' | 'men' | 'accessories' | 'new' | 'sale') => {
+    setCustomerCareRoute(null);
+    setSearchQuery('');
+    setSelectedProduct(null);
+
+    if (collectionKey === 'women') {
+      setCategory("women's clothing");
+      setSpecialCollection('all');
+      setMaxPrice(700);
+    } else if (collectionKey === 'men') {
+      setCategory("men's clothing");
+      setSpecialCollection('all');
+      setMaxPrice(700);
+    } else if (collectionKey === 'accessories') {
+      setCategory('jewelery');
+      setSpecialCollection('all');
+      setMaxPrice(700);
+    } else if (collectionKey === 'new') {
+      setCategory('all');
+      setSpecialCollection('new');
+      setSortBy('newest');
+      setMaxPrice(700);
+    } else if (collectionKey === 'sale') {
+      setCategory('all');
+      setSpecialCollection('sale');
+      setMaxPrice(700);
+    }
+
+    if (typeof window !== 'undefined') {
+      if (window.location.hash !== `#${collectionKey}`) {
+        window.location.hash = collectionKey;
+      }
+      setTimeout(() => {
+        const catalogEl = document.getElementById('catalog');
+        if (catalogEl) {
+          catalogEl.scrollIntoView({ behavior: 'smooth' });
+        } else {
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+      }, 50);
+    }
+  };
+
+  // Listen to hash changes for Customer Care navigation and footer collection links
   useEffect(() => {
     const handleHashChange = () => {
       const rawHash = window.location.hash.replace('#', '');
       if (['shipping', 'returns', 'sizing', 'order-lookup', 'contact'].includes(rawHash)) {
         setCustomerCareRoute(rawHash as CustomerCareSection);
         window.scrollTo({ top: 0, behavior: 'smooth' });
-      } else if (rawHash === 'women') {
-        setCustomerCareRoute(null);
-        setCategory("women's clothing");
-        window.scrollTo({ top: 0, behavior: 'smooth' });
-      } else if (rawHash === 'men') {
-        setCustomerCareRoute(null);
-        setCategory("men's clothing");
-        window.scrollTo({ top: 0, behavior: 'smooth' });
-      } else if (rawHash === 'accessories') {
-        setCustomerCareRoute(null);
-        setCategory('jewelery');
-        window.scrollTo({ top: 0, behavior: 'smooth' });
-      } else if (rawHash === 'new') {
-        setCustomerCareRoute(null);
-        setCategory('all');
-        setSortBy('newest');
-        window.scrollTo({ top: 0, behavior: 'smooth' });
-      } else if (rawHash === 'sale') {
-        setCustomerCareRoute(null);
-        setCategory('all');
-        setMaxPrice(50);
-        window.scrollTo({ top: 0, behavior: 'smooth' });
+      } else if (['women', 'men', 'accessories', 'new', 'sale'].includes(rawHash)) {
+        handleSelectCollection(rawHash as 'women' | 'men' | 'accessories' | 'new' | 'sale');
       } else if (rawHash === '' || rawHash === 'catalog' || rawHash === 'shop') {
         setCustomerCareRoute(null);
       }
     };
+
+    // Run on mount to honor deep-linked URLs like #women, #sale, etc.
+    handleHashChange();
 
     window.addEventListener('hashchange', handleHashChange);
     return () => window.removeEventListener('hashchange', handleHashChange);
@@ -222,6 +251,19 @@ export const AppContent: React.FC = () => {
               sizesLower.includes(token)
           );
           if (!matches) return false;
+        } else {
+          // When no search query is typed, filter by category
+          if (category !== 'all' && p.category.toLowerCase() !== category.toLowerCase()) {
+            return false;
+          }
+
+          // Special Collection filters
+          if (specialCollection === 'new' && !p.isNewArrival) {
+            return false;
+          }
+          if (specialCollection === 'sale' && !p.onSale && p.price > 50) {
+            return false;
+          }
         }
 
         // Price filter
@@ -249,7 +291,7 @@ export const AppContent: React.FC = () => {
         if (sortBy === 'newest') return (b.isNewArrival ? 1 : 0) - (a.isNewArrival ? 1 : 0);
         return (b.featured ? 1 : 0) - (a.featured ? 1 : 0);
       });
-  }, [products, searchQuery, maxPrice, sortBy, selectedFacetSize, selectedFacetColor]);
+  }, [products, searchQuery, category, specialCollection, maxPrice, sortBy, selectedFacetSize, selectedFacetColor]);
 
   // Detected autocorrection for the UI notice
   const detectedCorrection = useMemo(() => {
@@ -299,6 +341,8 @@ export const AppContent: React.FC = () => {
 
   const hasActiveFilters =
     searchQuery !== '' ||
+    category !== 'all' ||
+    specialCollection !== 'all' ||
     maxPrice < 700 ||
     sortBy !== 'featured' ||
     selectedFacetSize !== null ||
@@ -306,6 +350,7 @@ export const AppContent: React.FC = () => {
 
   const handleSelectCategory = (cat: Category) => {
     setCategory(cat);
+    setSpecialCollection('all');
     setCustomerCareRoute(null);
     if (typeof window !== 'undefined' && window.location.hash) {
       window.history.pushState(null, '', window.location.pathname);
@@ -314,6 +359,9 @@ export const AppContent: React.FC = () => {
 
   const handleSearchChange = (query: string) => {
     setSearchQuery(query);
+    if (specialCollection !== 'all') {
+      setSpecialCollection('all');
+    }
     if (customerCareRoute) {
       setCustomerCareRoute(null);
       if (typeof window !== 'undefined' && window.location.hash) {
@@ -335,10 +383,15 @@ export const AppContent: React.FC = () => {
 
   const handleResetFilters = () => {
     setSearchQuery('');
+    setCategory('all');
+    setSpecialCollection('all');
     setMaxPrice(700);
     setSortBy('featured');
     setSelectedFacetSize(null);
     setSelectedFacetColor(null);
+    if (typeof window !== 'undefined' && window.location.hash) {
+      window.history.pushState(null, '', window.location.pathname);
+    }
   };
 
   const featuredProduct = useMemo(() => {
@@ -405,17 +458,25 @@ export const AppContent: React.FC = () => {
             <h2 className="text-2xl font-serif font-bold text-slate-900 tracking-tight capitalize">
               {searchQuery.trim()
                 ? `Search Results for "${searchQuery}"`
+                : specialCollection === 'new'
+                ? 'Seasonal New Arrivals'
+                : specialCollection === 'sale'
+                ? 'End of Season Sale — Exclusive Markdowns'
                 : category === 'all'
                 ? 'Curated Wardrobe Collection'
                 : category === "men's clothing"
-                ? "Men's Apparel & Outwear"
+                ? "Men's Apparel & Outerwear"
                 : category === "women's clothing"
                 ? "Women's Collection & Tops"
-                : 'Fine Jewelry & Accents'}
+                : 'Fine Jewelry & Accessories'}
             </h2>
             <p className="text-xs text-stone-500 mt-0.5">
               {searchQuery.trim()
                 ? `Found ${displayedProducts.length} matching piece${displayedProducts.length === 1 ? '' : 's'} across all departments.`
+                : specialCollection === 'new'
+                ? `Showing ${displayedProducts.length} new seasonal arrivals fresh off the runway.`
+                : specialCollection === 'sale'
+                ? `Limited-time archive pricing and seasonal reductions. Up to 50% off select styles.`
                 : 'Refined tailoring, premium sustainable staples, and effortless styling.'}
             </p>
           </div>
@@ -599,7 +660,14 @@ export const AppContent: React.FC = () => {
       <Toast toasts={toasts} onDismiss={handleDismissToast} />
 
       {/* Footer */}
-      <Footer />
+      <Footer
+        onSelectCollection={handleSelectCollection}
+        onSelectCustomerCare={(section) => {
+          setCustomerCareRoute(section);
+          window.location.hash = section;
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+        }}
+      />
     </div>
   );
 };

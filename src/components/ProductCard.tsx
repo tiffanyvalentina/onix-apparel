@@ -65,6 +65,11 @@ export const ProductCard: React.FC<ProductCardProps> = ({
 
         {/* Badges */}
         <div className="absolute top-3 left-3 flex flex-col gap-1.5 pointer-events-none">
+          {product.onSale && (
+            <span className="bg-rose-700 text-white text-[10px] font-bold px-2 py-0.5 rounded tracking-wider uppercase shadow-xs">
+              Sale {product.discountPercent ? `-${product.discountPercent}%` : ''}
+            </span>
+          )}
           {product.isNewArrival && (
             <span className="bg-slate-900 text-white text-[10px] font-bold px-2 py-0.5 rounded tracking-wider uppercase">
               New
@@ -128,10 +133,15 @@ export const ProductCard: React.FC<ProductCardProps> = ({
 
         {/* Price & Add to Cart Button */}
         <div className="mt-auto pt-3 flex items-center justify-between border-t border-stone-100">
-          <div>
-            <span className="text-lg font-bold text-slate-900 tracking-tight">
+          <div className="flex items-baseline gap-1.5">
+            <span className={`text-base font-bold ${product.onSale ? 'text-rose-700' : 'text-slate-900'} tracking-tight`}>
               ${product.price.toFixed(2)}
             </span>
+            {product.originalPrice && (
+              <span className="text-xs text-stone-400 line-through">
+                ${product.originalPrice.toFixed(2)}
+              </span>
+            )}
           </div>
 
           <button

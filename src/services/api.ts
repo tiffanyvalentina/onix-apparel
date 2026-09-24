@@ -47,6 +47,9 @@ function enhanceProduct(item: any): Product {
     inStock: item.inStock !== undefined ? item.inStock : true,
     featured: item.featured !== undefined ? item.featured : (item.rating?.rate >= 4.0),
     isNewArrival: item.isNewArrival !== undefined ? item.isNewArrival : (item.id % 2 === 0),
+    onSale: item.onSale !== undefined ? item.onSale : (item.price < 35),
+    originalPrice: item.originalPrice !== undefined ? item.originalPrice : (item.onSale || item.price < 35 ? Math.round(item.price * 1.35 * 100) / 100 : undefined),
+    discountPercent: item.discountPercent !== undefined ? item.discountPercent : (item.onSale || item.price < 35 ? Math.round((1 - item.price / (item.price * 1.35)) * 100) : undefined),
   };
 }
 

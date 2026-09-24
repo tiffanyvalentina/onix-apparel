@@ -75,7 +75,10 @@ export const FALLBACK_PRODUCTS: Product[] = [
     colors: CLOTHING_COLORS,
     inStock: true,
     featured: false,
-    isNewArrival: false
+    isNewArrival: false,
+    onSale: true,
+    originalPrice: 24.99,
+    discountPercent: 36
   },
   {
     id: 15,
@@ -111,7 +114,10 @@ export const FALLBACK_PRODUCTS: Product[] = [
     ],
     inStock: true,
     featured: true,
-    isNewArrival: false
+    isNewArrival: false,
+    onSale: true,
+    originalPrice: 49.95,
+    discountPercent: 40
   },
   {
     id: 17,
@@ -143,7 +149,10 @@ export const FALLBACK_PRODUCTS: Product[] = [
     colors: CLOTHING_COLORS,
     inStock: true,
     featured: true,
-    isNewArrival: false
+    isNewArrival: false,
+    onSale: true,
+    originalPrice: 16.50,
+    discountPercent: 40
   },
   {
     id: 19,
@@ -225,7 +234,10 @@ export const FALLBACK_PRODUCTS: Product[] = [
     ],
     inStock: true,
     featured: false,
-    isNewArrival: false
+    isNewArrival: false,
+    onSale: true,
+    originalPrice: 19.99,
+    discountPercent: 50
   },
   {
     id: 8,
@@ -241,6 +253,9 @@ export const FALLBACK_PRODUCTS: Product[] = [
     ],
     inStock: true,
     featured: false,
-    isNewArrival: false
+    isNewArrival: false,
+    onSale: true,
+    originalPrice: 18.00,
+    discountPercent: 39
   }
 ];

@@ -125,8 +125,20 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
               <h2 className="text-xl sm:text-2xl font-serif font-bold text-slate-900 leading-snug mb-3">
                 {product.title}
               </h2>
-              <div className="text-2xl font-bold text-slate-900 mb-4">
-                ${product.price.toFixed(2)}
+              <div className="flex items-baseline gap-2 mb-4">
+                <span className={`text-2xl font-bold ${product.onSale ? 'text-rose-700' : 'text-slate-900'}`}>
+                  ${product.price.toFixed(2)}
+                </span>
+                {product.originalPrice && (
+                  <span className="text-base text-stone-400 line-through">
+                    ${product.originalPrice.toFixed(2)}
+                  </span>
+                )}
+                {product.discountPercent && (
+                  <span className="text-xs font-bold text-rose-700 bg-rose-50 px-2 py-0.5 rounded-full border border-rose-200">
+                    Save {product.discountPercent}%
+                  </span>
+                )}
               </div>
 
               {/* Description */}
@@ -141,9 +153,15 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
                     <label className="text-xs font-bold uppercase tracking-wider text-slate-800">
                       Select Size: <span className="text-stone-500">{selectedSize}</span>
                     </label>
-                    <span className="text-xs text-stone-500 underline cursor-pointer hover:text-black">
+                    <a
+                      href="#sizing"
+                      onClick={() => {
+                        onClose();
+                      }}
+                      className="text-xs text-stone-500 underline cursor-pointer hover:text-black"
+                    >
                       Size Guide
-                    </span>
+                    </a>
                   </div>
                   <div className="flex flex-wrap gap-2">
                     {product.sizes.map((size) => (
