@@ -2,11 +2,11 @@ import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 
 describe('Customer Care Links & Route Resolution', () => {
-  const customerCareRoutes = ['shipping', 'returns', 'sizing', 'order-lookup', 'contact'];
+  const customerCareRoutes = ['shipping', 'returns', 'sizing', 'order-lookup', 'contact', 'privacy'];
 
-  it('validates that all 5 required Customer Care routes are recognized', () => {
+  it('validates that all 6 required Customer Care routes are recognized', () => {
     customerCareRoutes.forEach((route) => {
-      assert.ok(['shipping', 'returns', 'sizing', 'order-lookup', 'contact'].includes(route));
+      assert.ok(['shipping', 'returns', 'sizing', 'order-lookup', 'contact', 'privacy'].includes(route));
     });
   });
 
@@ -17,6 +17,7 @@ describe('Customer Care Links & Route Resolution', () => {
       { hash: '#sizing', expected: 'sizing' },
       { hash: '#order-lookup', expected: 'order-lookup' },
       { hash: '#contact', expected: 'contact' },
+      { hash: '#privacy', expected: 'privacy' },
     ];
 
     testCases.forEach(({ hash, expected }) => {

@@ -29,6 +29,7 @@ try {
 
   const child = spawn(process.execPath, ['--test', ...distFiles], {
     stdio: 'inherit',
+    env: { ...process.env, NODE_ENV: 'test' }
   });
 
   child.on('exit', (code) => {

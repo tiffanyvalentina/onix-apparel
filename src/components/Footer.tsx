@@ -3,7 +3,7 @@ import { ArrowRight, Check, Heart, Mail, ShieldCheck } from 'lucide-react';
 
 export interface FooterProps {
   onSelectCollection?: (collectionKey: 'women' | 'men' | 'accessories' | 'new' | 'sale') => void;
-  onSelectCustomerCare?: (sectionKey: 'shipping' | 'returns' | 'sizing' | 'order-lookup' | 'contact') => void;
+  onSelectCustomerCare?: (sectionKey: 'shipping' | 'returns' | 'sizing' | 'order-lookup' | 'contact' | 'privacy') => void;
 }
 
 export const Footer: React.FC<FooterProps> = ({ onSelectCollection, onSelectCustomerCare }) => {
@@ -196,6 +196,20 @@ export const Footer: React.FC<FooterProps> = ({ onSelectCollection, onSelectCust
                   Contact Client Services
                 </a>
               </li>
+              <li>
+                <a
+                  href="#privacy"
+                  onClick={(e) => {
+                    if (onSelectCustomerCare) {
+                      e.preventDefault();
+                      onSelectCustomerCare('privacy');
+                    }
+                  }}
+                  className="hover:text-white transition-colors cursor-pointer"
+                >
+                  Privacy Policy & AI Terms
+                </a>
+              </li>
             </ul>
           </div>
 
@@ -233,7 +247,19 @@ export const Footer: React.FC<FooterProps> = ({ onSelectCollection, onSelectCust
                   </button>
                 </div>
                 <p className="text-[10px] text-stone-500">
-                  By signing up, you agree to our Terms of Service & Privacy Policy.
+                  By signing up, you agree to our{' '}
+                  <a
+                    href="#privacy"
+                    onClick={(e) => {
+                      if (onSelectCustomerCare) {
+                        e.preventDefault();
+                        onSelectCustomerCare('privacy');
+                      }
+                    }}
+                    className="underline hover:text-stone-400 transition-colors cursor-pointer"
+                  >
+                    Terms of Service & Privacy Policy
+                  </a>.
                 </p>
               </form>
             )}
@@ -249,6 +275,19 @@ export const Footer: React.FC<FooterProps> = ({ onSelectCollection, onSelectCust
             <span className="flex items-center gap-1">
               Crafted with <Heart className="w-3 h-3 text-rose-500 fill-rose-500" /> for modern fashion
             </span>
+            <span>•</span>
+            <a
+              href="#privacy"
+              onClick={(e) => {
+                if (onSelectCustomerCare) {
+                  e.preventDefault();
+                  onSelectCustomerCare('privacy');
+                }
+              }}
+              className="text-stone-400 hover:text-stone-300 underline transition-colors cursor-pointer"
+            >
+              Privacy & AI Governance
+            </a>
             <span>•</span>
             <span className="text-stone-400">Dummy Retail Demo</span>
           </div>

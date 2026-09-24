@@ -1,12 +1,13 @@
 import React from 'react';
-import { Truck, RotateCcw, Ruler, PackageSearch, Headset, ChevronRight, ArrowLeft } from 'lucide-react';
+import { Truck, RotateCcw, Ruler, PackageSearch, Headset, ShieldCheck, ChevronRight, ArrowLeft } from 'lucide-react';
 import { ShippingPolicy } from './ShippingPolicy';
 import { ReturnsPolicy } from './ReturnsPolicy';
 import { SizingGuide } from './SizingGuide';
 import { TrackOrder } from './TrackOrder';
 import { ContactClientServices } from './ContactClientServices';
+import { PrivacyPolicy } from './PrivacyPolicy';
 
-export type CustomerCareSection = 'shipping' | 'returns' | 'sizing' | 'order-lookup' | 'contact';
+export type CustomerCareSection = 'shipping' | 'returns' | 'sizing' | 'order-lookup' | 'contact' | 'privacy';
 
 interface CustomerCarePageProps {
   currentSection: CustomerCareSection;
@@ -49,6 +50,12 @@ export const CustomerCarePage: React.FC<CustomerCarePageProps> = ({
       label: 'Contact Client Services',
       icon: Headset,
       hash: '#contact',
+    },
+    {
+      id: 'privacy' as CustomerCareSection,
+      label: 'Privacy Policy & Terms',
+      icon: ShieldCheck,
+      hash: '#privacy',
     },
   ];
 
@@ -131,6 +138,7 @@ export const CustomerCarePage: React.FC<CustomerCarePageProps> = ({
             {currentSection === 'sizing' && <SizingGuide />}
             {currentSection === 'order-lookup' && <TrackOrder />}
             {currentSection === 'contact' && <ContactClientServices />}
+            {currentSection === 'privacy' && <PrivacyPolicy />}
           </main>
         </div>
       </div>

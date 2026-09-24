@@ -107,7 +107,7 @@ export const AppContent: React.FC = () => {
   useEffect(() => {
     const handleHashChange = () => {
       const rawHash = window.location.hash.replace('#', '');
-      if (['shipping', 'returns', 'sizing', 'order-lookup', 'contact'].includes(rawHash)) {
+      if (['shipping', 'returns', 'sizing', 'order-lookup', 'contact', 'privacy'].includes(rawHash)) {
         setCustomerCareRoute(rawHash as CustomerCareSection);
         window.scrollTo({ top: 0, behavior: 'smooth' });
       } else if (['women', 'men', 'accessories', 'new', 'sale'].includes(rawHash)) {

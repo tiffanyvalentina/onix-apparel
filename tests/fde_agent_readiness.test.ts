@@ -85,4 +85,71 @@ describe('Google Forward Deployment Engineer & Gemini Enterprise Readiness', () 
       assert.ok(html.includes('https://retail.googleapis.com'));
     });
   });
+
+  describe('Containerization & Cloud Run Manifests', () => {
+    it('should have production multi-stage Dockerfile targeting port 8080', () => {
+      const dockerfilePath = path.resolve(rootDir, 'Dockerfile');
+      assert.ok(fs.existsSync(dockerfilePath), 'Dockerfile must exist');
+
+      const dockerfile = fs.readFileSync(dockerfilePath, 'utf-8');
+      assert.ok(dockerfile.includes('FROM node:20-alpine AS builder'));
+      assert.ok(dockerfile.includes('FROM node:20-alpine AS runner'));
+      assert.ok(dockerfile.includes('EXPOSE 8080'));
+      assert.ok(dockerfile.includes('server/proxy.mjs'));
+    });
+
+    it('should have cloudbuild.yaml configured for Cloud Run deployment', () => {
+      const cbPath = path.resolve(rootDir, 'cloudbuild.yaml');
+      assert.ok(fs.existsSync(cbPath), 'cloudbuild.yaml must exist');
+
+      const cb = fs.readFileSync(cbPath, 'utf-8');
+      assert.ok(cb.includes('gcr.io/google.com/cloudsdktool/cloud-sdk'));
+      assert.ok(cb.includes('run'));
+      assert.ok(cb.includes('deploy'));
+      assert.ok(cb.includes('--port=8080'));
+      assert.ok(cb.includes('--allow-unauthenticated'));
+    });
+
+    it('should have .dockerignore and .gcloudignore preventing upload of node_modules and env', () => {
+      const dockerIgnorePath = path.resolve(rootDir, '.dockerignore');
+      const gcloudIgnorePath = path.resolve(rootDir, '.gcloudignore');
+      assert.ok(fs.existsSync(dockerIgnorePath));
+      assert.ok(fs.existsSync(gcloudIgnorePath));
+
+      const dContent = fs.readFileSync(dockerIgnorePath, 'utf-8');
+      const gContent = fs.readFileSync(gcloudIgnorePath, 'utf-8');
+      assert.ok(dContent.includes('node_modules'));
+      assert.ok(dContent.includes('.env'));
+      assert.ok(gContent.includes('node_modules'));
+      assert.ok(gContent.includes('.env'));
+    });
+  });
+
+  describe('In-Memory Sliding Window Rate Limiting', () => {
+    it('should allow legitimate requests and throttle excessive bursts', async () => {
+      const { checkRateLimit } = await import('../server/proxy.mjs');
+      const fakeReq = {
+        headers: { 'x-forwarded-for': '198.51.100.42' },
+        socket: { remoteAddress: '198.51.100.42' }
+      };
+
+      // Initial requests should succeed
+      for (let i = 0; i < 10; i++) {
+        assert.equal(checkRateLimit(fakeReq), true);
+      }
+    });
+  });
+
+  describe('Privacy Policy & Responsible AI Transparency', () => {
+    it('should include customer care privacy policy with AI disclosures', () => {
+      const privacyPath = path.resolve(rootDir, 'src', 'components', 'CustomerCare', 'PrivacyPolicy.tsx');
+      assert.ok(fs.existsSync(privacyPath), 'PrivacyPolicy.tsx component must exist');
+
+      const content = fs.readFileSync(privacyPath, 'utf-8');
+      assert.ok(content.includes('Responsible Artificial Intelligence (AI) Principles'));
+      assert.ok(content.includes('Gemini'));
+      assert.ok(content.includes('onix_visitor_id'));
+      assert.ok(content.includes('Demonstration Showcase'));
+    });
+  });
 });

@@ -258,27 +258,35 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose })
 
           {step === 'payment' && (
             <form onSubmit={handleCompleteOrder} className="space-y-4">
-              <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-2xl flex items-center gap-3 text-emerald-800">
-                <ShieldCheck className="w-5 h-5 text-emerald-600 shrink-0" />
-                <p className="text-xs">
-                  This is a dummy retail demo store. No real transactions or charges will occur.
-                </p>
+              <div className="p-4 bg-amber-50 border border-amber-200 rounded-2xl flex items-start gap-3 text-amber-900">
+                <ShieldCheck className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+                <div className="space-y-0.5">
+                  <p className="text-xs font-semibold">Demo Sandbox Environment</p>
+                  <p className="text-[11px] text-amber-800 leading-relaxed">
+                    This is a simulated retail store for Google Cloud & Gemini Enterprise demonstration. No real credit card or financial data is accepted, collected, or processed.
+                  </p>
+                </div>
               </div>
 
               <div className="space-y-3">
-                <label className="block text-xs font-bold uppercase tracking-wider text-slate-800">
-                  Payment Card Details
-                </label>
+                <div className="flex items-center justify-between">
+                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-800">
+                    Simulated Demo Payment Card
+                  </label>
+                  <span className="text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 bg-stone-200 text-stone-700 rounded-full">
+                    Preloaded Test Card
+                  </span>
+                </div>
                 <div>
                   <div className="relative">
-                    <CreditCard className="w-4 h-4 text-stone-400 absolute left-3.5 top-3.5 pointer-events-none" />
+                    <CreditCard className="w-4 h-4 text-stone-500 absolute left-3.5 top-3.5 pointer-events-none" />
                     <input
                       type="text"
                       name="cardNumber"
-                      value={formData.cardNumber}
-                      onChange={handleInputChange}
-                      placeholder="Card Number"
-                      className="w-full pl-10 pr-3.5 py-2.5 text-sm bg-stone-50 border border-stone-300 rounded-xl outline-none focus:border-slate-800 font-mono"
+                      readOnly
+                      value="•••• •••• •••• 4242 (Demo Test Card)"
+                      aria-label="Simulated test card number"
+                      className="w-full pl-10 pr-3.5 py-2.5 text-sm bg-stone-100 border border-stone-300 rounded-xl font-mono text-stone-700 cursor-not-allowed select-none"
                     />
                   </div>
                 </div>
@@ -288,10 +296,10 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose })
                     <input
                       type="text"
                       name="cardExp"
-                      value={formData.cardExp}
-                      onChange={handleInputChange}
-                      placeholder="MM/YY"
-                      className="w-full px-3.5 py-2.5 text-sm bg-stone-50 border border-stone-300 rounded-xl outline-none focus:border-slate-800 text-center"
+                      readOnly
+                      value="12/28 (Sandbox)"
+                      aria-label="Simulated expiration date"
+                      className="w-full px-3.5 py-2.5 text-sm bg-stone-100 border border-stone-300 rounded-xl text-center text-stone-700 cursor-not-allowed select-none"
                     />
                   </div>
                   <div>
@@ -300,10 +308,10 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose })
                       <input
                         type="text"
                         name="cardCvc"
-                        value={formData.cardCvc}
-                        onChange={handleInputChange}
-                        placeholder="CVC"
-                        className="w-full px-3.5 py-2.5 text-sm bg-stone-50 border border-stone-300 rounded-xl outline-none focus:border-slate-800 text-center"
+                        readOnly
+                        value="123"
+                        aria-label="Simulated card verification code"
+                        className="w-full px-3.5 py-2.5 text-sm bg-stone-100 border border-stone-300 rounded-xl text-center text-stone-700 cursor-not-allowed select-none"
                       />
                     </div>
                   </div>
@@ -351,7 +359,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose })
                   className="px-6 py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-semibold transition-all flex items-center gap-2 shadow-md"
                 >
                   <Lock className="w-4 h-4" />
-                  Pay ${total.toFixed(2)} & Place Order
+                  Simulate Demo Payment (${total.toFixed(2)})
                 </button>
               </div>
             </form>

@@ -146,6 +146,124 @@ export function sanitizeFilterValue(val) {
   return val.replace(/["'\\;()\[\]{}]/g, '').trim().slice(0, 50);
 }
 
+// In-Memory sliding-window rate limiter (120 req / minute per IP)
+const RATE_LIMIT_WINDOW_MS = 60 * 1000;
+const MAX_REQUESTS_PER_WINDOW = 120;
+const ipRequestCounts = new Map();
+
+export function checkRateLimit(req) {
+  const ip = req.headers['x-forwarded-for']?.split(',')[0]?.trim() || req.socket.remoteAddress || 'unknown';
+  const now = Date.now();
+  const record = ipRequestCounts.get(ip) || { count: 0, resetTime: now + RATE_LIMIT_WINDOW_MS };
+
+  if (now > record.resetTime) {
+    record.count = 1;
+    record.resetTime = now + RATE_LIMIT_WINDOW_MS;
+  } else {
+    record.count++;
+  }
+  ipRequestCounts.set(ip, record);
+
+  // Periodic cleanup of stale IPs
+  if (ipRequestCounts.size > 5000) {
+    for (const [k, v] of ipRequestCounts.entries()) {
+      if (now > v.resetTime) ipRequestCounts.delete(k);
+    }
+  }
+
+  return record.count <= MAX_REQUESTS_PER_WINDOW;
+}
+
+// Google Cloud Access Token acquisition with native Compute Metadata Server ADC fallback
+export async function getGcpAccessToken() {
+  // 1. Try google-auth-library if installed
+  try {
+    const { GoogleAuth } = await import('google-auth-library');
+    const auth = new GoogleAuth({ scopes: ['https://www.googleapis.com/auth/cloud-platform'] });
+    const client = await auth.getClient();
+    const tokenRes = await client.getAccessToken();
+    if (tokenRes?.token) return tokenRes.token;
+  } catch {}
+
+  // 2. Try native Google Cloud Metadata Server (Cloud Run, GKE, GCE native ADC)
+  try {
+    const metaRes = await fetch('http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/token', {
+      headers: { 'Metadata-Flavor': 'Google' },
+      signal: AbortSignal.timeout(1500)
+    });
+    if (metaRes.ok) {
+      const data = await metaRes.json();
+      if (data.access_token) return data.access_token;
+    }
+  } catch {}
+
+  // 3. Fallback to environment variable (local dev or CI)
+  return process.env.GOOGLE_ACCESS_TOKEN || null;
+}
+
+// Static File & Single Page Application (SPA) Serving for Production Cloud Run
+const distDir = path.resolve(rootDir, 'dist');
+const MIME_TYPES = {
+  '.html': 'text/html; charset=UTF-8',
+  '.js': 'text/javascript; charset=UTF-8',
+  '.mjs': 'text/javascript; charset=UTF-8',
+  '.css': 'text/css; charset=UTF-8',
+  '.json': 'application/json; charset=UTF-8',
+  '.svg': 'image/svg+xml',
+  '.png': 'image/png',
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.webp': 'image/webp',
+  '.ico': 'image/x-icon',
+  '.woff': 'font/woff',
+  '.woff2': 'font/woff2',
+  '.ttf': 'font/ttf',
+  '.yaml': 'text/yaml; charset=UTF-8',
+  '.txt': 'text/plain; charset=UTF-8'
+};
+
+export function serveStatic(req, res, pathname) {
+  if (!fs.existsSync(distDir)) return false;
+
+  // Prevent path traversal
+  const safeSuffix = path.normalize(pathname).replace(/^(\.\.[\/\\])+/, '');
+  let filePath = path.join(distDir, safeSuffix);
+
+  // If path is a directory, look for index.html
+  if (fs.existsSync(filePath) && fs.statSync(filePath).isDirectory()) {
+    filePath = path.join(filePath, 'index.html');
+  }
+
+  // SPA fallback: if file does not exist and it is not an asset request (no extension), serve index.html
+  if (!fs.existsSync(filePath)) {
+    if (!path.extname(pathname)) {
+      filePath = path.join(distDir, 'index.html');
+    } else {
+      return false;
+    }
+  }
+
+  // Ensure path stays within distDir
+  const resolved = path.resolve(filePath);
+  if (!resolved.startsWith(distDir)) return false;
+
+  if (fs.existsSync(resolved) && fs.statSync(resolved).isFile()) {
+    const ext = path.extname(resolved).toLowerCase();
+    const contentType = MIME_TYPES[ext] || 'application/octet-stream';
+    const content = fs.readFileSync(resolved);
+    res.writeHead(200, {
+      'Content-Type': contentType,
+      'Access-Control-Allow-Origin': getCorsOrigin(req),
+      'X-Content-Type-Options': 'nosniff',
+      'X-Frame-Options': 'SAMEORIGIN',
+      'Cache-Control': ext === '.html' ? 'no-cache' : 'public, max-age=31536000, immutable'
+    });
+    res.end(content);
+    return true;
+  }
+  return false;
+}
+
 // Request dispatcher
 const server = http.createServer(async (req, res) => {
   // Handle CORS preflight
@@ -160,6 +278,13 @@ const server = http.createServer(async (req, res) => {
   }
 
   const url = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
+
+  // Rate limiting guard on API endpoints
+  if (url.pathname.startsWith('/api/')) {
+    if (!checkRateLimit(req)) {
+      return sendJson(res, 429, { error: 'Too Many Requests. Please slow down.' }, req);
+    }
+  }
 
   // Health check
   if (url.pathname === '/api/health' && req.method === 'GET') {
@@ -210,17 +335,7 @@ const server = http.createServer(async (req, res) => {
     // 1. LIVE MODE: Call Google Cloud Vertex AI Search for Retail
     if (isLiveMode) {
       try {
-        let token = null;
-        try {
-          const { GoogleAuth } = await import('google-auth-library');
-          const auth = new GoogleAuth({ scopes: ['https://www.googleapis.com/auth/cloud-platform'] });
-          const client = await auth.getClient();
-          const tokenRes = await client.getAccessToken();
-          token = tokenRes.token;
-        } catch {
-          // Token from gcloud auth print-access-token or env
-          token = process.env.GOOGLE_ACCESS_TOKEN || null;
-        }
+        const token = await getGcpAccessToken();
 
         if (token) {
           const endpoint = `https://retail.googleapis.com/v2/projects/${GCP_PROJECT_ID}/locations/${GCP_LOCATION}/catalogs/${GCP_CATALOG_ID}/servingConfigs/${GCP_SERVING_CONFIG_ID}:search`;
@@ -450,13 +565,24 @@ const server = http.createServer(async (req, res) => {
     }
   }
 
+  // Serve static assets and SPA fallback for Cloud Run container
+  if (req.method === 'GET') {
+    const served = serveStatic(req, res, url.pathname);
+    if (served) return;
+  }
+
   // Not found
   return sendJson(res, 404, { error: 'Not found' }, req);
 });
 
 export { server };
 
-const isTesting = process.env.NODE_ENV === 'test' || process.argv.includes('--test');
+const isTesting =
+  process.env.NODE_ENV === 'test' ||
+  process.argv.includes('--test') ||
+  process.execArgv.includes('--test') ||
+  process.env.NODE_TEST_CONTEXT !== undefined;
+
 if (!isTesting) {
   server.listen(PORT, () => {
     console.log(`🌐 Vertex AI Proxy running at http://127.0.0.1:${PORT}`);
