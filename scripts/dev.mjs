@@ -20,7 +20,7 @@ const proxy = spawn(process.execPath, [path.resolve(rootDir, 'server/proxy.mjs')
 
 // 2. Start Vite Frontend
 const viteBin = path.resolve(rootDir, 'node_modules/.bin/vite');
-const vite = spawn(viteBin, ['--host', '127.0.0.1', '--port', '5173'], {
+const vite = spawn(viteBin, ['--host', '--port', '5173'], {
   cwd: rootDir,
   stdio: 'inherit',
   env: process.env
