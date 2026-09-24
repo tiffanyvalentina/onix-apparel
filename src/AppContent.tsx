@@ -22,6 +22,7 @@ import { useCart } from './context/CartContext';
 import { Sparkles, RefreshCw, AlertCircle } from 'lucide-react';
 import { FALLBACK_PRODUCTS } from './data/fallbackProducts';
 import { correctQuery } from './utils/fuzzySearch';
+import { CustomerCarePage, CustomerCareSection } from './components/CustomerCare/CustomerCarePage';
 
 export const AppContent: React.FC = () => {
   const [products, setProducts] = useState<Product[]>(FALLBACK_PRODUCTS);
@@ -43,8 +44,54 @@ export const AppContent: React.FC = () => {
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
+  const [customerCareRoute, setCustomerCareRoute] = useState<CustomerCareSection | null>(() => {
+    if (typeof window === 'undefined') return null;
+    const hash = window.location.hash.replace('#', '');
+    if (['shipping', 'returns', 'sizing', 'order-lookup', 'contact'].includes(hash)) {
+      return hash as CustomerCareSection;
+    }
+    return null;
+  });
 
   const { addToCart } = useCart();
+
+  // Listen to hash changes for Customer Care navigation and footer links
+  useEffect(() => {
+    const handleHashChange = () => {
+      const rawHash = window.location.hash.replace('#', '');
+      if (['shipping', 'returns', 'sizing', 'order-lookup', 'contact'].includes(rawHash)) {
+        setCustomerCareRoute(rawHash as CustomerCareSection);
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      } else if (rawHash === 'women') {
+        setCustomerCareRoute(null);
+        setCategory("women's clothing");
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      } else if (rawHash === 'men') {
+        setCustomerCareRoute(null);
+        setCategory("men's clothing");
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      } else if (rawHash === 'accessories') {
+        setCustomerCareRoute(null);
+        setCategory('jewelery');
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      } else if (rawHash === 'new') {
+        setCustomerCareRoute(null);
+        setCategory('all');
+        setSortBy('newest');
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      } else if (rawHash === 'sale') {
+        setCustomerCareRoute(null);
+        setCategory('all');
+        setMaxPrice(50);
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      } else if (rawHash === '' || rawHash === 'catalog' || rawHash === 'shop') {
+        setCustomerCareRoute(null);
+      }
+    };
+
+    window.addEventListener('hashchange', handleHashChange);
+    return () => window.removeEventListener('hashchange', handleHashChange);
+  }, []);
 
   // Check Vertex AI proxy health and active mode
   useEffect(() => {
@@ -257,8 +304,22 @@ export const AppContent: React.FC = () => {
     selectedFacetSize !== null ||
     selectedFacetColor !== null;
 
+  const handleSelectCategory = (cat: Category) => {
+    setCategory(cat);
+    setCustomerCareRoute(null);
+    if (typeof window !== 'undefined' && window.location.hash) {
+      window.history.pushState(null, '', window.location.pathname);
+    }
+  };
+
   const handleSearchChange = (query: string) => {
     setSearchQuery(query);
+    if (customerCareRoute) {
+      setCustomerCareRoute(null);
+      if (typeof window !== 'undefined' && window.location.hash) {
+        window.history.pushState(null, '', window.location.pathname);
+      }
+    }
     if (query.trim() && category !== 'all') {
       // Auto-switch to 'all' so search is global across all collections
       setCategory('all');
@@ -289,7 +350,7 @@ export const AppContent: React.FC = () => {
       {/* Navbar with live autocomplete preview and keyboard submit */}
       <Navbar
         currentCategory={category}
-        onSelectCategory={setCategory}
+        onSelectCategory={handleSelectCategory}
         searchQuery={searchQuery}
         onSearchChange={handleSearchChange}
         onSearchSubmit={handleSearchSubmit}
@@ -297,30 +358,48 @@ export const AppContent: React.FC = () => {
         onSelectProduct={setSelectedProduct}
       />
 
-      {/* Hero Banner (Shown when not actively searching) */}
-      {!searchQuery.trim() && (
-        <HeroBanner
-          onSelectCategory={setCategory}
-          featuredProduct={featuredProduct}
-          onQuickView={setSelectedProduct}
+      {customerCareRoute ? (
+        <CustomerCarePage
+          currentSection={customerCareRoute}
+          onNavigate={(sec) => {
+            window.location.hash = sec;
+            setCustomerCareRoute(sec);
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+          }}
+          onBackToShop={() => {
+            if (typeof window !== 'undefined' && window.location.hash) {
+              window.history.pushState(null, '', window.location.pathname);
+            }
+            setCustomerCareRoute(null);
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+          }}
         />
-      )}
+      ) : (
+        <>
+          {/* Hero Banner (Shown when not actively searching) */}
+          {!searchQuery.trim() && (
+            <HeroBanner
+              onSelectCategory={handleSelectCategory}
+              featuredProduct={featuredProduct}
+              onQuickView={setSelectedProduct}
+            />
+          )}
 
-      {/* Filter and Control Bar */}
-      <FilterBar
-        currentCategory={category}
-        onSelectCategory={setCategory}
-        maxPrice={maxPrice}
-        onMaxPriceChange={setMaxPrice}
-        sortBy={sortBy}
-        onSortChange={setSortBy}
-        totalCount={displayedProducts.length}
-        onResetFilters={handleResetFilters}
-        hasActiveFilters={hasActiveFilters}
-      />
+          {/* Filter and Control Bar */}
+          <FilterBar
+            currentCategory={category}
+            onSelectCategory={handleSelectCategory}
+            maxPrice={maxPrice}
+            onMaxPriceChange={setMaxPrice}
+            sortBy={sortBy}
+            onSortChange={setSortBy}
+            totalCount={displayedProducts.length}
+            onResetFilters={handleResetFilters}
+            hasActiveFilters={hasActiveFilters}
+          />
 
-      {/* Main Catalog Section */}
-      <main id="catalog" className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-10">
+          {/* Main Catalog Section */}
+          <main id="catalog" className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-10">
         <div className="mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
             <h2 className="text-2xl font-serif font-bold text-slate-900 tracking-tight capitalize">
@@ -491,6 +570,8 @@ export const AppContent: React.FC = () => {
           </div>
         )}
       </main>
+      </>
+      )}
 
       {/* Product Detail Modal */}
       <ProductDetailModal
