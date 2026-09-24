@@ -296,7 +296,12 @@ const server = http.createServer(async (req, res) => {
       if (cleanQ.includes('shrt') || cleanQ.includes('tshirt')) correctedQuery = 't-shirt';
       if (cleanQ.includes('jewl') || cleanQ.includes('dimond')) correctedQuery = 'diamond';
 
-      const tokens = cleanQ.split(/\s+/).filter(Boolean);
+      const tokens = Array.from(
+        new Set([
+          ...cleanQ.split(/\s+/).filter(Boolean),
+          ...(correctedQuery ? correctedQuery.split(/\s+/).filter(Boolean) : []),
+        ])
+      );
 
       filtered = filtered.map(p => {
         let score = 0;
@@ -392,6 +397,6 @@ const server = http.createServer(async (req, res) => {
   return sendJson(res, 404, { error: 'Not found' });
 });
 
-server.listen(PORT, '0.0.0.0', () => {
+server.listen(PORT, () => {
   console.log(`🌐 Vertex AI Proxy running at http://127.0.0.1:${PORT}`);
 });

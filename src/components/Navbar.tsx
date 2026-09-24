@@ -91,16 +91,17 @@ export const Navbar: React.FC<NavbarProps> = ({
                 type="text"
                 value={searchQuery}
                 onChange={(e) => onSearchChange(e.target.value)}
-                placeholder="Search styles, jackets, shirts..."
-                className="w-48 md:w-64 pl-9 pr-4 py-1.5 text-xs bg-stone-100 border border-transparent focus:border-stone-400 focus:bg-white rounded-full transition-all outline-none"
+                placeholder="Search jackets, shirts, jewelry..."
+                className="w-52 md:w-72 lg:w-80 pl-9 pr-8 py-2 text-xs bg-stone-100/90 hover:bg-stone-100 border border-stone-200 focus:border-slate-900 focus:bg-white rounded-full transition-all outline-none text-slate-900 placeholder:text-stone-400"
               />
               <Search className="w-4 h-4 text-stone-400 absolute left-3 top-2.5 pointer-events-none" />
               {searchQuery && (
                 <button
                   onClick={() => onSearchChange('')}
-                  className="absolute right-3 top-2.5 text-xs text-stone-400 hover:text-stone-700"
+                  className="absolute right-2.5 top-2 w-4 h-4 rounded-full bg-stone-200 hover:bg-stone-300 text-stone-600 hover:text-stone-900 flex items-center justify-center text-[10px] font-bold transition-colors"
+                  aria-label="Clear search"
                 >
-                  ×
+                  ✕
                 </button>
               )}
             </div>

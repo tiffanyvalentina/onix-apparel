@@ -51,39 +51,45 @@ export const AppContent: React.FC = () => {
     });
   }, []);
 
-  // Query Vertex AI Commerce Search on filter / query updates (with debounce)
+  // Query Vertex AI Commerce Search in background to enrich facets / live GCP data
   useEffect(() => {
     const timer = setTimeout(async () => {
       try {
-        const res = await searchVertexProducts({
-          query: searchQuery,
-          category,
-          maxPrice,
-          size: selectedFacetSize || undefined,
-          color: selectedFacetColor || undefined,
-          sortBy,
-        });
+        const res = await searchVertexProducts(
+          {
+            query: searchQuery,
+            category,
+            maxPrice,
+            size: selectedFacetSize || undefined,
+            color: selectedFacetColor || undefined,
+            sortBy,
+          },
+          products.length > 0 ? products : undefined
+        );
 
-        if (res && res.products && res.products.length > 0) {
-          setVertexResults(res.products);
-          setCorrectedQuery(res.correctedQuery);
-          setSearchSource(res.source);
-          setFacets(res.facets || []);
-        } else if (searchQuery.trim()) {
-          // If query had 0 results in Vertex AI
-          setVertexResults([]);
-          setCorrectedQuery(null);
-        } else {
-          setVertexResults(null);
-          setCorrectedQuery(null);
+        if (res) {
+          if (res.products && res.products.length > 0) {
+            setVertexResults(res.products);
+          }
+          if (res.correctedQuery) {
+            setCorrectedQuery(res.correctedQuery);
+          } else {
+            setCorrectedQuery(null);
+          }
+          if (res.source) {
+            setSearchSource(res.source);
+          }
+          if (res.facets && res.facets.length > 0) {
+            setFacets(res.facets);
+          }
         }
-      } catch {
-        setVertexResults(null);
+      } catch (err) {
+        console.warn('Vertex search sync error:', err);
       }
-    }, 200);
+    }, 150);
 
     return () => clearTimeout(timer);
-  }, [searchQuery, category, maxPrice, sortBy, selectedFacetSize, selectedFacetColor]);
+  }, [searchQuery, category, maxPrice, sortBy, selectedFacetSize, selectedFacetColor, products]);
 
   // Load products from Fake Store API (with local fallback)
   useEffect(() => {
@@ -143,21 +149,60 @@ export const AppContent: React.FC = () => {
     addToast('cart', 'Added to Shopping Bag', `${product.title} (Size: ${size})`);
   };
 
-  // Filter & Sort Logic (client fallback)
+  // Instant, synchronous 0ms search & filter logic
   const filteredProducts = useMemo(() => {
+    const cleanQ = searchQuery.trim().toLowerCase();
+
+    // Typo autocorrection
+    let autoCorrectTerm: string | null = null;
+    if (cleanQ.includes('jacet') || cleanQ.includes('jaket')) autoCorrectTerm = 'jacket';
+    if (cleanQ.includes('shrt') || cleanQ.includes('tshirt')) autoCorrectTerm = 't-shirt';
+    if (cleanQ.includes('jewl') || cleanQ.includes('dimond')) autoCorrectTerm = 'diamond';
+    if (cleanQ.includes('hoodi')) autoCorrectTerm = 'hoodie';
+
+    const tokens = Array.from(
+      new Set([
+        ...cleanQ.split(/\s+/).filter(Boolean),
+        ...(autoCorrectTerm ? autoCorrectTerm.split(/\s+/).filter(Boolean) : []),
+      ])
+    );
+
     return products
       .filter((p) => {
-        // Search query filter
-        if (searchQuery.trim()) {
-          const q = searchQuery.toLowerCase();
-          const matchTitle = p.title.toLowerCase().includes(q);
-          const matchDesc = p.description.toLowerCase().includes(q);
-          const matchCat = p.category.toLowerCase().includes(q);
-          if (!matchTitle && !matchDesc && !matchCat) return false;
+        // Search query filter (matches title, description, category, color, size)
+        if (tokens.length > 0) {
+          const titleLower = (p.title || '').toLowerCase();
+          const descLower = (p.description || '').toLowerCase();
+          const catLower = (p.category || '').toLowerCase();
+          const colorsLower = (p.colors || []).map((c) => c.name.toLowerCase()).join(' ');
+          const sizesLower = (p.sizes || []).join(' ').toLowerCase();
+
+          const matches = tokens.some(
+            (token) =>
+              titleLower.includes(token) ||
+              descLower.includes(token) ||
+              catLower.includes(token) ||
+              colorsLower.includes(token) ||
+              sizesLower.includes(token)
+          );
+          if (!matches) return false;
         }
 
         // Price filter
         if (p.price > maxPrice) return false;
+
+        // Size facet filter
+        if (selectedFacetSize && !p.sizes?.includes(selectedFacetSize)) {
+          return false;
+        }
+
+        // Color facet filter
+        if (
+          selectedFacetColor &&
+          !p.colors?.some((c) => c.name.toLowerCase() === selectedFacetColor.toLowerCase())
+        ) {
+          return false;
+        }
 
         return true;
       })
@@ -168,9 +213,57 @@ export const AppContent: React.FC = () => {
         if (sortBy === 'newest') return (b.isNewArrival ? 1 : 0) - (a.isNewArrival ? 1 : 0);
         return (b.featured ? 1 : 0) - (a.featured ? 1 : 0);
       });
-  }, [products, searchQuery, maxPrice, sortBy]);
+  }, [products, searchQuery, maxPrice, sortBy, selectedFacetSize, selectedFacetColor]);
 
-  const displayedProducts = vertexResults !== null ? vertexResults : filteredProducts;
+  // Detected autocorrection for the UI notice
+  const detectedCorrection = useMemo(() => {
+    if (correctedQuery) return correctedQuery;
+    const cleanQ = searchQuery.trim().toLowerCase();
+    if (cleanQ.includes('jacet') || cleanQ.includes('jaket')) return 'jacket';
+    if (cleanQ.includes('shrt') || cleanQ.includes('tshirt')) return 't-shirt';
+    if (cleanQ.includes('jewl') || cleanQ.includes('dimond')) return 'diamond';
+    if (cleanQ.includes('hoodi')) return 'hoodie';
+    return null;
+  }, [correctedQuery, searchQuery]);
+
+  // Dynamic Facets computed in real time from matching items
+  const computedFacets = useMemo<FacetGroup[]>(() => {
+    if (facets.length > 0 && vertexHealth?.mode === 'live') {
+      return facets;
+    }
+    const sizeMap: Record<string, number> = {};
+    const colorMap: Record<string, number> = {};
+
+    filteredProducts.forEach((p) => {
+      p.sizes?.forEach((s) => {
+        sizeMap[s] = (sizeMap[s] || 0) + 1;
+      });
+      p.colors?.forEach((c) => {
+        colorMap[c.name] = (colorMap[c.name] || 0) + 1;
+      });
+    });
+
+    return [
+      {
+        key: 'sizes',
+        values: Object.entries(sizeMap)
+          .sort((a, b) => b[1] - a[1])
+          .map(([value, count]) => ({ value, count })),
+      },
+      {
+        key: 'colors',
+        values: Object.entries(colorMap)
+          .sort((a, b) => b[1] - a[1])
+          .map(([value, count]) => ({ value, count })),
+      },
+    ];
+  }, [facets, vertexHealth, filteredProducts]);
+
+  // If Live GCP returned server results, use them; otherwise use instant filtered list
+  const displayedProducts =
+    vertexHealth?.mode === 'live' && vertexResults !== null && vertexResults.length > 0
+      ? vertexResults
+      : filteredProducts;
 
   const hasActiveFilters =
     searchQuery !== '' ||
@@ -271,15 +364,15 @@ export const AppContent: React.FC = () => {
         </div>
 
         {/* Autocorrect / Query Expansion Notice */}
-        {correctedQuery && (
+        {detectedCorrection && (
           <div className="mb-5 px-4 py-3 bg-amber-50/90 border border-amber-200 rounded-2xl flex items-center justify-between text-xs text-amber-900 shadow-sm animate-fade-in">
             <div>
               <span>Showing results for </span>
-              <strong className="underline decoration-amber-400 font-bold">{correctedQuery}</strong>
+              <strong className="underline decoration-amber-400 font-bold">{detectedCorrection}</strong>
               <span className="text-amber-700 ml-1.5">(autocorrected from "{searchQuery}")</span>
             </div>
             <button
-              onClick={() => setSearchQuery(correctedQuery)}
+              onClick={() => setSearchQuery(detectedCorrection)}
               className="px-2.5 py-1 bg-amber-200/70 hover:bg-amber-200 text-amber-900 rounded-lg font-semibold transition-colors"
             >
               Update Search
@@ -288,12 +381,12 @@ export const AppContent: React.FC = () => {
         )}
 
         {/* Dynamic Facet Chips (from Vertex AI) */}
-        {facets.length > 0 && (searchQuery.trim() || category !== 'all' || selectedFacetSize || selectedFacetColor) && (
+        {computedFacets.length > 0 && (searchQuery.trim() || category !== 'all' || selectedFacetSize || selectedFacetColor) && (
           <div className="mb-6 flex flex-wrap items-center gap-2 p-3 bg-white border border-stone-200 rounded-2xl shadow-sm">
             <span className="text-xs font-semibold text-stone-500 uppercase tracking-wider mr-1">
               Refine by Facet:
             </span>
-            {facets
+            {computedFacets
               .find((f) => f.key === 'sizes' || f.key === 'attributes.sizes')
               ?.values.slice(0, 5)
               .map((v) => (
@@ -309,7 +402,7 @@ export const AppContent: React.FC = () => {
                   Size {v.value} ({v.count})
                 </button>
               ))}
-            {facets
+            {computedFacets
               .find((f) => f.key === 'colors' || f.key === 'attributes.colors')
               ?.values.slice(0, 4)
               .map((v) => (
