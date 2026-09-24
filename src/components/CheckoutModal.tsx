@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { X, CheckCircle, ShieldCheck, Lock, CreditCard, Truck, ArrowLeft, ArrowRight } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { useCart } from '../context/CartContext';
+import { trackVertexUserEvent } from '../services/vertexSearch';
 import { OrderDetails } from '../types/product';
 
 interface CheckoutModalProps {
@@ -67,6 +68,17 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose })
 
     setCompletedOrder(newOrder);
     setStep('success');
+
+    // Track purchase-complete user events in Vertex AI Commerce Search
+    cart.forEach((item) => {
+      trackVertexUserEvent('purchase-complete', item.product, {
+        quantity: item.quantity,
+        size: item.selectedSize,
+        color: item.selectedColor,
+        orderId,
+      });
+    });
+
     clearCart();
 
     // Trigger celebratory confetti

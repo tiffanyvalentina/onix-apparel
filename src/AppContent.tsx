@@ -10,6 +10,13 @@ import { CheckoutModal } from './components/CheckoutModal';
 import { Footer } from './components/Footer';
 import { Toast, ToastMessage } from './components/Toast';
 import { fetchProducts } from './services/api';
+import {
+  searchVertexProducts,
+  trackVertexUserEvent,
+  getVertexHealth,
+  FacetGroup,
+  VertexHealthResponse,
+} from './services/vertexSearch';
 import { Product, Category, SortOption } from './types/product';
 import { useCart } from './context/CartContext';
 import { Sparkles, RefreshCw, AlertCircle } from 'lucide-react';
@@ -22,11 +29,61 @@ export const AppContent: React.FC = () => {
   const [maxPrice, setMaxPrice] = useState<number>(700);
   const [sortBy, setSortBy] = useState<SortOption>('featured');
 
+  // Vertex AI Commerce Search State
+  const [vertexHealth, setVertexHealth] = useState<VertexHealthResponse | null>(null);
+  const [vertexResults, setVertexResults] = useState<Product[] | null>(null);
+  const [correctedQuery, setCorrectedQuery] = useState<string | null>(null);
+  const [searchSource, setSearchSource] = useState<string>('local-fallback');
+  const [facets, setFacets] = useState<FacetGroup[]>([]);
+  const [selectedFacetSize, setSelectedFacetSize] = useState<string | null>(null);
+  const [selectedFacetColor, setSelectedFacetColor] = useState<string | null>(null);
+
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
 
   const { addToCart } = useCart();
+
+  // Check Vertex AI proxy health and active mode
+  useEffect(() => {
+    getVertexHealth().then((health) => {
+      if (health) setVertexHealth(health);
+    });
+  }, []);
+
+  // Query Vertex AI Commerce Search on filter / query updates (with debounce)
+  useEffect(() => {
+    const timer = setTimeout(async () => {
+      try {
+        const res = await searchVertexProducts({
+          query: searchQuery,
+          category,
+          maxPrice,
+          size: selectedFacetSize || undefined,
+          color: selectedFacetColor || undefined,
+          sortBy,
+        });
+
+        if (res && res.products && res.products.length > 0) {
+          setVertexResults(res.products);
+          setCorrectedQuery(res.correctedQuery);
+          setSearchSource(res.source);
+          setFacets(res.facets || []);
+        } else if (searchQuery.trim()) {
+          // If query had 0 results in Vertex AI
+          setVertexResults([]);
+          setCorrectedQuery(null);
+        } else {
+          setVertexResults(null);
+          setCorrectedQuery(null);
+        }
+      } catch {
+        setVertexResults(null);
+      }
+    }, 200);
+
+    return () => clearTimeout(timer);
+  }, [searchQuery, category, maxPrice, sortBy, selectedFacetSize, selectedFacetColor]);
 
   // Load products from Fake Store API (with local fallback)
   useEffect(() => {
@@ -70,6 +127,7 @@ export const AppContent: React.FC = () => {
     const size = product.sizes?.[0] || 'M';
     const color = product.colors?.[0]?.name || 'Standard';
     addToCart(product, size, color, 1);
+    trackVertexUserEvent('add-to-cart', product, { quantity: 1, size, color });
     addToast('cart', 'Added to Shopping Bag', `${product.title} (Size: ${size})`);
   };
 
@@ -85,7 +143,7 @@ export const AppContent: React.FC = () => {
     addToast('cart', 'Added to Shopping Bag', `${product.title} (Size: ${size})`);
   };
 
-  // Filter & Sort Logic
+  // Filter & Sort Logic (client fallback)
   const filteredProducts = useMemo(() => {
     return products
       .filter((p) => {
@@ -108,17 +166,25 @@ export const AppContent: React.FC = () => {
         if (sortBy === 'price-desc') return b.price - a.price;
         if (sortBy === 'rating') return b.rating.rate - a.rating.rate;
         if (sortBy === 'newest') return (b.isNewArrival ? 1 : 0) - (a.isNewArrival ? 1 : 0);
-        // Featured default:
         return (b.featured ? 1 : 0) - (a.featured ? 1 : 0);
       });
   }, [products, searchQuery, maxPrice, sortBy]);
 
-  const hasActiveFilters = searchQuery !== '' || maxPrice < 700 || sortBy !== 'featured';
+  const displayedProducts = vertexResults !== null ? vertexResults : filteredProducts;
+
+  const hasActiveFilters =
+    searchQuery !== '' ||
+    maxPrice < 700 ||
+    sortBy !== 'featured' ||
+    selectedFacetSize !== null ||
+    selectedFacetColor !== null;
 
   const handleResetFilters = () => {
     setSearchQuery('');
     setMaxPrice(700);
     setSortBy('featured');
+    setSelectedFacetSize(null);
+    setSelectedFacetColor(null);
   };
 
   const featuredProduct = useMemo(() => {
@@ -150,14 +216,14 @@ export const AppContent: React.FC = () => {
         onMaxPriceChange={setMaxPrice}
         sortBy={sortBy}
         onSortChange={setSortBy}
-        totalCount={filteredProducts.length}
+        totalCount={displayedProducts.length}
         onResetFilters={handleResetFilters}
         hasActiveFilters={hasActiveFilters}
       />
 
       {/* Main Catalog Section */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-10">
-        <div className="mb-6 flex items-center justify-between">
+        <div className="mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
             <h2 className="text-2xl font-serif font-bold text-slate-900 tracking-tight capitalize">
               {category === 'all'
@@ -172,13 +238,106 @@ export const AppContent: React.FC = () => {
               Refined tailoring, premium sustainable staples, and effortless styling.
             </p>
           </div>
-          {filteredProducts.length > 0 && (
-            <span className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-stone-200/60 text-stone-700">
-              <Sparkles className="w-3.5 h-3.5 text-amber-600" />
-              In Stock & Ready to Ship
+
+          <div className="flex flex-wrap items-center gap-2">
+            {/* Vertex AI Mode Indicator */}
+            <span
+              className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold border ${
+                vertexHealth?.mode === 'live'
+                  ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                  : 'bg-stone-100 text-stone-700 border-stone-200'
+              }`}
+              title={
+                vertexHealth?.mode === 'live'
+                  ? `Connected to Google Cloud project: ${vertexHealth.gcpProjectId}`
+                  : `Running in local Vertex AI mode (${searchSource})`
+              }
+            >
+              <span
+                className={`w-2 h-2 rounded-full ${
+                  vertexHealth?.mode === 'live' ? 'bg-emerald-500 animate-pulse' : 'bg-blue-500'
+                }`}
+              />
+              Vertex AI Commerce Search ({vertexHealth?.mode === 'live' ? 'Live GCP' : 'Simulation'})
             </span>
-          )}
+
+            {displayedProducts.length > 0 && (
+              <span className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-stone-200/60 text-stone-700">
+                <Sparkles className="w-3.5 h-3.5 text-amber-600" />
+                In Stock & Ready to Ship
+              </span>
+            )}
+          </div>
         </div>
+
+        {/* Autocorrect / Query Expansion Notice */}
+        {correctedQuery && (
+          <div className="mb-5 px-4 py-3 bg-amber-50/90 border border-amber-200 rounded-2xl flex items-center justify-between text-xs text-amber-900 shadow-sm animate-fade-in">
+            <div>
+              <span>Showing results for </span>
+              <strong className="underline decoration-amber-400 font-bold">{correctedQuery}</strong>
+              <span className="text-amber-700 ml-1.5">(autocorrected from "{searchQuery}")</span>
+            </div>
+            <button
+              onClick={() => setSearchQuery(correctedQuery)}
+              className="px-2.5 py-1 bg-amber-200/70 hover:bg-amber-200 text-amber-900 rounded-lg font-semibold transition-colors"
+            >
+              Update Search
+            </button>
+          </div>
+        )}
+
+        {/* Dynamic Facet Chips (from Vertex AI) */}
+        {facets.length > 0 && (searchQuery.trim() || category !== 'all' || selectedFacetSize || selectedFacetColor) && (
+          <div className="mb-6 flex flex-wrap items-center gap-2 p-3 bg-white border border-stone-200 rounded-2xl shadow-sm">
+            <span className="text-xs font-semibold text-stone-500 uppercase tracking-wider mr-1">
+              Refine by Facet:
+            </span>
+            {facets
+              .find((f) => f.key === 'sizes' || f.key === 'attributes.sizes')
+              ?.values.slice(0, 5)
+              .map((v) => (
+                <button
+                  key={v.value}
+                  onClick={() => setSelectedFacetSize(selectedFacetSize === v.value ? null : v.value)}
+                  className={`px-3 py-1 text-xs rounded-full border transition-all ${
+                    selectedFacetSize === v.value
+                      ? 'bg-slate-900 text-white border-slate-900 shadow-sm'
+                      : 'bg-stone-50 text-stone-700 border-stone-200 hover:border-stone-400'
+                  }`}
+                >
+                  Size {v.value} ({v.count})
+                </button>
+              ))}
+            {facets
+              .find((f) => f.key === 'colors' || f.key === 'attributes.colors')
+              ?.values.slice(0, 4)
+              .map((v) => (
+                <button
+                  key={v.value}
+                  onClick={() => setSelectedFacetColor(selectedFacetColor === v.value ? null : v.value)}
+                  className={`px-3 py-1 text-xs rounded-full border transition-all ${
+                    selectedFacetColor === v.value
+                      ? 'bg-slate-900 text-white border-slate-900 shadow-sm'
+                      : 'bg-stone-50 text-stone-700 border-stone-200 hover:border-stone-400'
+                  }`}
+                >
+                  {v.value} ({v.count})
+                </button>
+              ))}
+            {(selectedFacetSize || selectedFacetColor) && (
+              <button
+                onClick={() => {
+                  setSelectedFacetSize(null);
+                  setSelectedFacetColor(null);
+                }}
+                className="text-xs text-rose-600 hover:text-rose-700 underline font-medium ml-2"
+              >
+                Clear Facets
+              </button>
+            )}
+          </div>
+        )}
 
         {/* Loading Skeleton */}
         {loading ? (
@@ -195,7 +354,7 @@ export const AppContent: React.FC = () => {
               </div>
             ))}
           </div>
-        ) : filteredProducts.length === 0 ? (
+        ) : displayedProducts.length === 0 ? (
           /* Empty State */
           <div className="bg-white rounded-3xl border border-stone-200 p-12 text-center max-w-md mx-auto my-12">
             <div className="w-16 h-16 rounded-full bg-stone-100 flex items-center justify-center text-stone-400 mx-auto mb-4">
@@ -218,7 +377,7 @@ export const AppContent: React.FC = () => {
         ) : (
           /* Products Grid */
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-            {filteredProducts.map((product) => (
+            {displayedProducts.map((product) => (
               <ProductCard
                 key={product.id}
                 product={product}

@@ -3,6 +3,7 @@ import { X, Star, Heart, ShoppingBag, Truck, RefreshCw, ShieldCheck } from 'luci
 import { Product } from '../types/product';
 import { useCart } from '../context/CartContext';
 import { useWishlist } from '../context/WishlistContext';
+import { trackVertexUserEvent } from '../services/vertexSearch';
 
 interface ProductDetailModalProps {
   product: Product | null;
@@ -27,6 +28,9 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
       setSelectedSize(product.sizes?.[0] || 'M');
       setSelectedColor(product.colors?.[0]?.name || 'Standard');
       setQuantity(1);
+
+      // Log detail-page-view event in Vertex AI Commerce Search
+      trackVertexUserEvent('detail-page-view', product);
     }
   }, [product]);
 
@@ -36,6 +40,11 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
 
   const handleAddToCart = () => {
     addToCart(product, selectedSize, selectedColor, quantity);
+    trackVertexUserEvent('add-to-cart', product, {
+      quantity,
+      size: selectedSize,
+      color: selectedColor,
+    });
     onAddedToCartNotify(product, selectedSize);
     onClose();
   };
