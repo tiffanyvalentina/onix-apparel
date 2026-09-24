@@ -20,10 +20,11 @@ import {
 import { Product, Category, SortOption } from './types/product';
 import { useCart } from './context/CartContext';
 import { Sparkles, RefreshCw, AlertCircle } from 'lucide-react';
+import { FALLBACK_PRODUCTS } from './data/fallbackProducts';
 
 export const AppContent: React.FC = () => {
-  const [products, setProducts] = useState<Product[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [products, setProducts] = useState<Product[]>(FALLBACK_PRODUCTS);
+  const [loading, setLoading] = useState(false);
   const [category, setCategory] = useState<Category>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [maxPrice, setMaxPrice] = useState<number>(700);
@@ -272,6 +273,21 @@ export const AppContent: React.FC = () => {
     selectedFacetSize !== null ||
     selectedFacetColor !== null;
 
+  const handleSearchChange = (query: string) => {
+    setSearchQuery(query);
+    if (query.trim() && category !== 'all') {
+      // Auto-switch to 'all' so search is global across all collections
+      setCategory('all');
+    }
+  };
+
+  const handleSearchSubmit = () => {
+    const catalogEl = document.getElementById('catalog');
+    if (catalogEl) {
+      catalogEl.scrollIntoView({ behavior: 'smooth' });
+    }
+  };
+
   const handleResetFilters = () => {
     setSearchQuery('');
     setMaxPrice(700);
@@ -286,20 +302,25 @@ export const AppContent: React.FC = () => {
 
   return (
     <div className="min-h-screen flex flex-col bg-stone-50 text-slate-800">
-      {/* Navbar */}
+      {/* Navbar with live autocomplete preview and keyboard submit */}
       <Navbar
         currentCategory={category}
         onSelectCategory={setCategory}
         searchQuery={searchQuery}
-        onSearchChange={setSearchQuery}
+        onSearchChange={handleSearchChange}
+        onSearchSubmit={handleSearchSubmit}
+        searchResults={filteredProducts}
+        onSelectProduct={setSelectedProduct}
       />
 
-      {/* Hero Banner (Shown when viewing all or top of page) */}
-      <HeroBanner
-        onSelectCategory={setCategory}
-        featuredProduct={featuredProduct}
-        onQuickView={setSelectedProduct}
-      />
+      {/* Hero Banner (Shown when not actively searching) */}
+      {!searchQuery.trim() && (
+        <HeroBanner
+          onSelectCategory={setCategory}
+          featuredProduct={featuredProduct}
+          onQuickView={setSelectedProduct}
+        />
+      )}
 
       {/* Filter and Control Bar */}
       <FilterBar
@@ -315,11 +336,13 @@ export const AppContent: React.FC = () => {
       />
 
       {/* Main Catalog Section */}
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-10">
+      <main id="catalog" className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-10">
         <div className="mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
             <h2 className="text-2xl font-serif font-bold text-slate-900 tracking-tight capitalize">
-              {category === 'all'
+              {searchQuery.trim()
+                ? `Search Results for "${searchQuery}"`
+                : category === 'all'
                 ? 'Curated Wardrobe Collection'
                 : category === "men's clothing"
                 ? "Men's Apparel & Outwear"
@@ -328,7 +351,9 @@ export const AppContent: React.FC = () => {
                 : 'Fine Jewelry & Accents'}
             </h2>
             <p className="text-xs text-stone-500 mt-0.5">
-              Refined tailoring, premium sustainable staples, and effortless styling.
+              {searchQuery.trim()
+                ? `Found ${displayedProducts.length} matching piece${displayedProducts.length === 1 ? '' : 's'} across all departments.`
+                : 'Refined tailoring, premium sustainable staples, and effortless styling.'}
             </p>
           </div>
 

@@ -39,15 +39,22 @@ export interface VertexHealthResponse {
   timestamp: string;
 }
 
-// Generate or retrieve persistent anonymous visitorId for Retail ML ranking
+// Generate or retrieve persistent anonymous visitorId for Retail ML ranking safely
 function getVisitorId(): string {
   const STORAGE_KEY = 'onix_visitor_id';
-  let visitorId = localStorage.getItem(STORAGE_KEY);
-  if (!visitorId) {
-    visitorId = `vis_${Math.random().toString(36).substring(2, 11)}_${Date.now()}`;
-    localStorage.setItem(STORAGE_KEY, visitorId);
+  try {
+    if (typeof window !== 'undefined' && window.localStorage) {
+      let visitorId = window.localStorage.getItem(STORAGE_KEY);
+      if (!visitorId) {
+        visitorId = `vis_${Math.random().toString(36).substring(2, 11)}_${Date.now()}`;
+        window.localStorage.setItem(STORAGE_KEY, visitorId);
+      }
+      return visitorId;
+    }
+  } catch {
+    // Fallback if localStorage is disabled or throws SecurityError
   }
-  return visitorId;
+  return `vis_${Math.random().toString(36).substring(2, 11)}_${Date.now()}`;
 }
 
 /**
