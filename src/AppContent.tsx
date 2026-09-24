@@ -23,6 +23,8 @@ import { Sparkles, RefreshCw, AlertCircle } from 'lucide-react';
 import { FALLBACK_PRODUCTS } from './data/fallbackProducts';
 import { correctQuery } from './utils/fuzzySearch';
 import { CustomerCarePage, CustomerCareSection } from './components/CustomerCare/CustomerCarePage';
+import { ConciergeChatModal } from './components/ConciergeChatModal';
+import { subscribeToAgentActions } from './services/agentActionBus';
 
 export type SpecialCollection = 'all' | 'new' | 'sale';
 
@@ -394,6 +396,46 @@ export const AppContent: React.FC = () => {
     }
   };
 
+  // Listen to Client Action Bus events dispatched by Gemini Concierge or external agents
+  useEffect(() => {
+    return subscribeToAgentActions((action) => {
+      if (action.action === 'ADD_TO_CART') {
+        const prod =
+          action.product ||
+          products.find((p) => p.id === action.productId) ||
+          (action.productTitle
+            ? products.find((p) => p.title.toLowerCase().includes(action.productTitle!.toLowerCase()))
+            : undefined);
+
+        if (prod) {
+          const size = action.size || prod.sizes?.[0] || 'M';
+          const color = action.color || prod.colors?.[0]?.name || 'Standard';
+          const qty = action.quantity || 1;
+          addToCart(prod, size, color, qty);
+          addToast('cart', 'Added to Shopping Bag by Concierge', `${prod.title} (${size}, ${color})`);
+        }
+      } else if (action.action === 'OPEN_PRODUCT') {
+        const prod =
+          action.product ||
+          products.find((p) => p.id === action.productId) ||
+          (action.productTitle
+            ? products.find((p) => p.title.toLowerCase().includes(action.productTitle!.toLowerCase()))
+            : undefined);
+
+        if (prod) {
+          setSelectedProduct(prod);
+        }
+      } else if (action.action === 'NAVIGATE_COLLECTION' && action.collection) {
+        handleSelectCollection(action.collection);
+      } else if (action.action === 'SEARCH' && action.query !== undefined) {
+        handleSearchChange(action.query);
+        handleSearchSubmit();
+      } else if (action.action === 'CLEAR_FILTERS') {
+        handleResetFilters();
+      }
+    });
+  }, [products, addToCart]);
+
   const featuredProduct = useMemo(() => {
     return products.find((p) => p.featured) || products[0];
   }, [products]);
@@ -655,6 +697,9 @@ export const AppContent: React.FC = () => {
         isOpen={isCheckoutOpen}
         onClose={() => setIsCheckoutOpen(false)}
       />
+
+      {/* Gemini Enterprise AI Concierge Assistant & Client Action Bus Shell */}
+      <ConciergeChatModal />
 
       {/* Toast Notifications */}
       <Toast toasts={toasts} onDismiss={handleDismissToast} />

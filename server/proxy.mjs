@@ -114,15 +114,36 @@ function mapVertexProductToFrontend(vertexProduct) {
   };
 }
 
+// Configurable CORS origins (default to * for local dev, restrictable via ALLOWED_ORIGIN)
+const ALLOWED_ORIGIN = process.env.ALLOWED_ORIGIN || '*';
+const MAX_BODY_BYTES = 100 * 1024; // 100 KB payload limit to protect against memory exhaustion DoS
+
+function getCorsOrigin(req) {
+  if (ALLOWED_ORIGIN === '*') return '*';
+  const reqOrigin = req.headers.origin;
+  if (!reqOrigin) return ALLOWED_ORIGIN;
+  const allowedList = ALLOWED_ORIGIN.split(',').map((s) => s.trim());
+  return allowedList.includes(reqOrigin) ? reqOrigin : allowedList[0];
+}
+
 // Helper to send JSON response with standard CORS headers
-function sendJson(res, statusCode, data) {
+function sendJson(res, statusCode, data, req) {
   res.writeHead(statusCode, {
     'Content-Type': 'application/json',
-    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Origin': req ? getCorsOrigin(req) : ALLOWED_ORIGIN,
     'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type, Authorization'
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+    'X-Content-Type-Options': 'nosniff',
+    'X-Frame-Options': 'SAMEORIGIN'
   });
   res.end(JSON.stringify(data));
+}
+
+// Sanitizer for Retail API filter string expressions to prevent query injection
+export function sanitizeFilterValue(val) {
+  if (typeof val !== 'string') return '';
+  // Strip quotes, backslashes, parentheses, brackets, and semicolon characters
+  return val.replace(/["'\\;()\[\]{}]/g, '').trim().slice(0, 50);
 }
 
 // Request dispatcher
@@ -130,9 +151,10 @@ const server = http.createServer(async (req, res) => {
   // Handle CORS preflight
   if (req.method === 'OPTIONS') {
     res.writeHead(204, {
-      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Origin': getCorsOrigin(req),
       'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type, Authorization'
+      'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+      'Access-Control-Max-Age': '86400'
     });
     return res.end();
   }
@@ -148,19 +170,26 @@ const server = http.createServer(async (req, res) => {
       location: GCP_LOCATION,
       catalogItemCount: localCatalog.length,
       timestamp: new Date().toISOString()
-    });
+    }, req);
   }
 
-  // Parse JSON body for POST requests
+  // Parse JSON body for POST requests with DoS / payload size limits
   let body = {};
   if (req.method === 'POST') {
     try {
+      let receivedBytes = 0;
       const chunks = [];
-      for await (const chunk of req) chunks.push(chunk);
+      for await (const chunk of req) {
+        receivedBytes += chunk.length;
+        if (receivedBytes > MAX_BODY_BYTES) {
+          return sendJson(res, 413, { error: 'Payload too large. Maximum size is 100KB.' }, req);
+        }
+        chunks.push(chunk);
+      }
       const raw = Buffer.concat(chunks).toString('utf-8');
       if (raw) body = JSON.parse(raw);
     } catch (err) {
-      return sendJson(res, 400, { error: 'Invalid JSON body' });
+      return sendJson(res, 400, { error: 'Invalid JSON body' }, req);
     }
   }
 
@@ -206,10 +235,16 @@ const server = http.createServer(async (req, res) => {
               filterConditions.push('(categories: ANY("Accessories > Fine Jewelry"))');
             }
           }
-          if (minPrice !== undefined && minPrice !== null) filterConditions.push(`price >= ${minPrice}`);
-          if (maxPrice !== undefined && maxPrice !== null) filterConditions.push(`price <= ${maxPrice}`);
-          if (size) filterConditions.push(`(attributes.sizes: ANY("${size}"))`);
-          if (color) filterConditions.push(`(attributes.colors: ANY("${color}"))`);
+          const numMinPrice = typeof minPrice === 'number' && !isNaN(minPrice) ? minPrice : undefined;
+          const numMaxPrice = typeof maxPrice === 'number' && !isNaN(maxPrice) ? maxPrice : undefined;
+          if (numMinPrice !== undefined) filterConditions.push(`price >= ${numMinPrice}`);
+          if (numMaxPrice !== undefined) filterConditions.push(`price <= ${numMaxPrice}`);
+
+          // Sanitize facet values against filter query injection
+          const cleanSize = sanitizeFilterValue(size);
+          const cleanColor = sanitizeFilterValue(color);
+          if (cleanSize) filterConditions.push(`(attributes.sizes: ANY("${cleanSize}"))`);
+          if (cleanColor) filterConditions.push(`(attributes.colors: ANY("${cleanColor}"))`);
 
           let orderBy = '';
           if (sortBy === 'price-low') orderBy = 'price asc';
@@ -217,7 +252,7 @@ const server = http.createServer(async (req, res) => {
           if (sortBy === 'rating') orderBy = 'attributes.rating_rate desc';
 
           const vertexPayload = {
-            query: query.trim(),
+            query: typeof query === 'string' ? query.trim().slice(0, 100) : '',
             visitorId,
             pageSize,
             filter: filterConditions.join(' AND ') || undefined,
@@ -247,7 +282,7 @@ const server = http.createServer(async (req, res) => {
               correctedQuery: data.correctedQuery || null,
               facets: data.facets || [],
               products: results
-            });
+            }, req);
           }
         }
       } catch (err) {
@@ -371,7 +406,7 @@ const server = http.createServer(async (req, res) => {
       correctedQuery,
       facets,
       products
-    });
+    }, req);
   }
 
   // Events Logging
@@ -390,13 +425,40 @@ const server = http.createServer(async (req, res) => {
     };
 
     console.log(`📊 [Vertex AI Event] ${eventType.toUpperCase()} | Visitor: ${visitorId} | Product: ${product?.title || 'N/A'}`);
-    return sendJson(res, 200, { success: true, loggedEvent: eventPayload });
+    return sendJson(res, 200, { success: true, loggedEvent: eventPayload }, req);
+  }
+
+  // Serve A2A Agent Card for Gemini Enterprise registration
+  if (url.pathname === '/.well-known/agent-card.json' && req.method === 'GET') {
+    const cardPath = path.resolve(rootDir, 'public', '.well-known', 'agent-card.json');
+    if (fs.existsSync(cardPath)) {
+      const cardContent = JSON.parse(fs.readFileSync(cardPath, 'utf-8'));
+      return sendJson(res, 200, cardContent, req);
+    }
+  }
+
+  // Serve OpenAPI specification
+  if (url.pathname === '/openapi.yaml' && req.method === 'GET') {
+    const yamlPath = path.resolve(rootDir, 'openapi.yaml');
+    if (fs.existsSync(yamlPath)) {
+      const content = fs.readFileSync(yamlPath, 'utf-8');
+      res.writeHead(200, {
+        'Content-Type': 'application/x-yaml',
+        'Access-Control-Allow-Origin': getCorsOrigin(req)
+      });
+      return res.end(content);
+    }
   }
 
   // Not found
-  return sendJson(res, 404, { error: 'Not found' });
+  return sendJson(res, 404, { error: 'Not found' }, req);
 });
 
-server.listen(PORT, () => {
-  console.log(`🌐 Vertex AI Proxy running at http://127.0.0.1:${PORT}`);
-});
+export { server };
+
+const isTesting = process.env.NODE_ENV === 'test' || process.argv.includes('--test');
+if (!isTesting) {
+  server.listen(PORT, () => {
+    console.log(`🌐 Vertex AI Proxy running at http://127.0.0.1:${PORT}`);
+  });
+}

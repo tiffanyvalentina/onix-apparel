@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { Product, CartItem, PromoCode } from '../types/product';
+import { notifyCartState, subscribeToAgentActions } from '../services/agentActionBus';
 
 interface CartContextType {
   cart: CartItem[];
@@ -168,6 +169,36 @@ export const CartProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const total = taxableAmount + shipping + tax;
 
   const amountUntilFreeShipping = Math.max(0, FREE_SHIPPING_THRESHOLD - subtotal);
+
+  // Subscribe to autonomous agent actions for cart open/close and promo codes
+  useEffect(() => {
+    return subscribeToAgentActions((action) => {
+      if (action.action === 'OPEN_CART') {
+        setIsCartOpen(true);
+      } else if (action.action === 'CLOSE_CART') {
+        setIsCartOpen(false);
+      } else if (action.action === 'APPLY_PROMO' && action.promoCode) {
+        applyPromoCode(action.promoCode);
+      }
+    });
+  }, []);
+
+  // Broadcast cart changes on the window bus so embedded AI agents stay synchronized
+  useEffect(() => {
+    notifyCartState({
+      itemCount: totalItems,
+      subtotal,
+      total,
+      items: cart.map((i) => ({
+        id: i.id,
+        title: i.product.title,
+        price: i.product.price,
+        quantity: i.quantity,
+        size: i.selectedSize,
+        color: i.selectedColor,
+      })),
+    });
+  }, [cart, totalItems, subtotal, total]);
 
   return (
     <CartContext.Provider
