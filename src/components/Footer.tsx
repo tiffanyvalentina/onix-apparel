@@ -33,7 +33,7 @@ export const Footer: React.FC<FooterProps> = ({ onSelectCollection, onSelectCust
               </span>
             </div>
             <p className="text-xs text-stone-400 max-w-sm leading-relaxed">
-              Curated clothing & timeless silhouettes created for thoughtful modern living. Powered by the open-source Fake Store API for high-fidelity retail experience.
+              Curated clothing & timeless silhouettes created for thoughtful modern living. Powered by Google Cloud Vertex AI Search.
             </p>
             <div className="flex items-center gap-2 text-xs text-stone-400">
               <ShieldCheck className="w-4 h-4 text-emerald-400" />
